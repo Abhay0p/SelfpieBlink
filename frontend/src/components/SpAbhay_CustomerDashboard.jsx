@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Search, MapPin, Store, ChevronRight, Loader2, Sparkles, LogOut, ScanLine, ShoppingCart } from 'lucide-react';
+import { Camera, Search, MapPin, Store, ChevronRight, Loader2, Sparkles, LogOut, ScanLine, ShoppingCart, AlertTriangle } from 'lucide-react';
 import SpAbhay_SmartScanner from './SpAbhay_SmartScanner';
 import SpAbhay_ActiveCart from './SpAbhay_ActiveCart';
 import SpAbhay_StoreCheckIn from './SpAbhay_StoreCheckIn';
@@ -7,37 +7,33 @@ import SpAbhay_BarcodeScanner from './SpAbhay_BarcodeScanner';
 import SpAbhay_ManualItemSelection from './SpAbhay_ManualItemSelection';
 import { useCartStore } from '../store/SpAbhay_useCartStore';
 import { API_BASE_URL } from '../config';
+import { useCustomerAuth } from '../hooks/useCustomerAuth';
+import { Link } from 'react-router-dom';
 
 // -- CUSTOMER AUTHENTICATION VIEW --
-function CustomerAuthView({ onLogin }) {
+function CustomerAuthView({ auth }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError('');
-    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
-    const payload = { email, password, role: 'customer' };
-    
-    try {
-      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if(data.token) {
-        localStorage.setItem('customerToken', data.token);
-        localStorage.setItem('customerId', data.id);
-        onLogin(data);
-      } else setError(data.error);
-    } catch(err) { setError("Server connection failed."); }
-    finally { setIsLoading(false); }
+    await auth.login(email, password, isLogin);
   };
+
+  if (localStorage.getItem('merchantToken')) {
+     return (
+       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 text-center p-6 mt-[-3rem]">
+         <AlertTriangle className="w-16 h-16 text-amber-500 mb-4" />
+         <h2 className="text-2xl font-black text-slate-800 mb-2">You are currently a Merchant</h2>
+         <p className="text-slate-500 mb-8 max-w-sm">Please log out of the Merchant dashboard before attempting to access the Shopping interface to prevent data overlap.</p>
+         <div className="flex flex-col sm:flex-row gap-4">
+           <Link to="/merchant" className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition">Return to Dashboard</Link>
+           <button onClick={() => { localStorage.removeItem('merchantToken'); localStorage.removeItem('merchantShopId'); window.location.reload(); }} className="px-6 py-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold transition">Force Logout Merchant</button>
+         </div>
+       </div>
+     );
+  }
 
   return (
     <div className="flex h-[100vh] mt-[-3rem] items-center justify-center bg-slate-50 relative overflow-hidden min-h-screen">
@@ -48,17 +44,18 @@ function CustomerAuthView({ onLogin }) {
         <h2 className="text-3xl font-black text-slate-800 text-center mb-2">{isLogin ? 'Customer Login' : 'Join SelfpieBlink'}</h2>
         <p className="text-center text-slate-500 text-sm mb-6">Skip the billing queue seamlessly.</p>
         
-        {error && <div className="bg-rose-50 text-rose-600 text-sm p-3 rounded-lg mb-4 font-bold text-center border border-rose-100">{error}</div>}
+        {auth.error && <div className="bg-rose-50 text-rose-600 text-sm p-3 rounded-lg mb-4 font-bold text-center border border-rose-100">{auth.error}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} required className="w-full px-5 py-4 bg-slate-100/50 focus:bg-white rounded-2xl font-medium" />
           <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} required className="w-full px-5 py-4 bg-slate-100/50 focus:bg-white rounded-2xl font-medium" />
-          <button type="submit" disabled={isLoading} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 disabled:bg-indigo-400">
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : (isLogin ? 'Login to App' : 'Create Account')}
+          <button type="submit" disabled={auth.isLoading} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 disabled:bg-indigo-400">
+            {auth.isLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : (isLogin ? 'Login to App' : 'Create Account')}
           </button>
           <div className="text-center text-sm font-bold text-indigo-600 cursor-pointer pt-2" onClick={() => setIsLogin(!isLogin)}>
              {isLogin ? 'Create a new account' : 'Already have an account?'}
           </div>
+          <Link to="/merchant" className="block text-center text-sm font-bold text-slate-400 hover:text-slate-600 mt-6 pt-4 border-t border-slate-100">Are you a Shopkeeper?</Link>
         </form>
       </div>
     </div>
@@ -72,10 +69,18 @@ function NearbyShops({ onSelectShop }) {
   const [mode, setMode] = useState('list'); // list or qr
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/shops/nearby`)
-      .then(res => res.json())
-      .then(data => { if(data.success) setShops(data.data); })
-      .finally(() => setLoading(false));
+    const fetchShops = (url) => {
+      fetch(url).then(res => res.json()).then(data => { if(data.success) setShops(data.data); }).finally(() => setLoading(false));
+    };
+
+    if (navigator.geolocation) {
+       navigator.geolocation.getCurrentPosition(
+         pos => fetchShops(`${API_BASE_URL}/api/shops/nearby?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`),
+         () => fetchShops(`${API_BASE_URL}/api/shops/nearby`)
+       );
+    } else {
+       fetchShops(`${API_BASE_URL}/api/shops/nearby`);
+    }
   }, []);
 
   if (mode === 'qr') {
@@ -109,7 +114,7 @@ function NearbyShops({ onSelectShop }) {
              <div key={shop._id} onClick={() => onSelectShop(shop._id)} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-indigo-200 hover:shadow-md transition cursor-pointer flex justify-between items-center group">
                <div>
                  <h3 className="text-xl font-bold text-slate-800">{shop.shopName}</h3>
-                 <p className="text-emerald-500 text-sm font-bold flex items-center mt-1"><MapPin className="w-3.5 h-3.5 mr-1" /> {Math.floor(Math.random() * 800) + 100}m away</p>
+                 <p className="text-emerald-500 text-sm font-bold flex items-center mt-1"><MapPin className="w-3.5 h-3.5 mr-1" /> {shop.distanceKm !== undefined ? (shop.distanceKm < 1 ? `${Math.round(shop.distanceKm * 1000)}m away` : `${shop.distanceKm.toFixed(1)}km away`) : 'Distance unknown'}</p>
                </div>
                <div className="w-12 h-12 bg-slate-50 group-hover:bg-indigo-50 text-slate-400 group-hover:text-indigo-600 rounded-2xl flex items-center justify-center transition">
                  <Store className="w-6 h-6" />
@@ -129,18 +134,24 @@ export default function SpAbhay_CustomerDashboard() {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [showManualItems, setShowManualItems] = useState(false);
   const { currentShopId, setShopId } = useCartStore();
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('customerToken'));
+  const auth = useCustomerAuth();
 
-  if (!isAuthenticated) return <CustomerAuthView onLogin={() => setIsAuthenticated(true)} />;
+  if (!auth.isAuthenticated) return <CustomerAuthView auth={auth} />;
 
   if (!currentShopId) {
     return (
-      <div className="relative">
-         <button onClick={() => { localStorage.clear(); setIsAuthenticated(false); }} className="absolute -top-14 right-4 text-rose-500 font-bold hover:text-rose-600 transition flex items-center z-50">
-           <LogOut className="w-4 h-4 mr-1"/> Logout
-         </button>
+      <div className="pt-4">
+         <div className="flex justify-between items-center bg-white p-4 px-6 rounded-3xl shadow-sm border border-slate-100 mb-6 mx-auto">
+           <span className="font-black text-indigo-600 tracking-tight text-xl flex items-center gap-2">
+             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white"><Sparkles className="w-4 h-4" /></div>
+             SelfpieBlink
+           </span>
+           <button onClick={() => auth.logout()} className="flex items-center text-rose-500 font-bold hover:text-rose-600 bg-rose-50 hover:bg-rose-100 px-4 py-2 rounded-xl transition">
+             <LogOut className="w-4 h-4 mr-2"/> Logout
+           </button>
+         </div>
          <NearbyShops onSelectShop={(id) => setShopId(id)} />
-      </div>
+       </div>
     );
   }
 
@@ -153,7 +164,7 @@ export default function SpAbhay_CustomerDashboard() {
         >
           <ChevronRight className="rotate-180 w-5 h-5 mr-1" /> Leave Store
         </button>
-        <button onClick={() => { localStorage.clear(); setIsAuthenticated(false); setShopId(null); }} className="flex items-center text-rose-500 font-bold hover:text-rose-600 transition">
+        <button onClick={() => { auth.logout(); setShopId(null); }} className="flex items-center text-rose-500 font-bold hover:text-rose-600 transition">
           <LogOut className="w-4 h-4 mr-1"/> Logout
         </button>
       </div>

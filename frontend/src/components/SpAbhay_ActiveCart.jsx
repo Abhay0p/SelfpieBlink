@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useCartStore } from '../store/SpAbhay_useCartStore';
-import { ShoppingBag, X, Plus, Minus, CreditCard, ChevronUp, QrCode, Clock, CheckCircle2, PackageCheck } from 'lucide-react';
+import { ShoppingBag, X, Plus, Minus, CreditCard, ChevronUp, QrCode, Clock, CheckCircle2, PackageCheck, Loader2 } from 'lucide-react';
 import SpAbhay_OrderChat from './SpAbhay_OrderChat';
 import { io } from 'socket.io-client';
 import { API_BASE_URL } from '../config';
@@ -47,7 +47,16 @@ export default function SpAbhay_ActiveCart() {
     }
   };
 
-  const verifyPaymentLocally = () => {
+  const verifyPaymentLocally = async () => {
+     try {
+       await fetch(`${API_BASE_URL}/api/orders/verify-payment`, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ orderIdString: activeOrder.id, shopId: currentShopId })
+       });
+     } catch (err) {
+       console.error('Verify Payment API call failed:', err);
+     }
      setActiveOrder({ ...activeOrder, status: 'Pending' });
      clearCart();
      const socket = io(API_BASE_URL, { transports: ['websocket'] });
@@ -65,29 +74,45 @@ export default function SpAbhay_ActiveCart() {
     return (
       <div className="fixed inset-x-0 bottom-0 z-50 p-4 md:p-6 pb-safety flex justify-center transform transition-transform animate-in slide-in-from-bottom-24">
         <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 flex flex-col items-center p-8 text-center relative max-h-[90vh] overflow-y-auto">
-          {(!['Pending', 'Accepted', 'Ready for Pickup'].includes(activeOrder.status)) && (
-             <button onClick={() => setActiveOrder(null)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
-          )}
+          <button onClick={() => setActiveOrder(null)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
 
           {activeOrder.status === 'Pending Payment' ? (
             <>
-              <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6">{getStatusIcon('Pending Payment')}</div>
-              <h3 className="text-2xl font-black text-slate-900 mb-2">Complete Payment</h3>
-              <p className="text-slate-500 font-medium mb-8">Pay securely to generate your Gate Pass.</p>
+              <h3 className="text-2xl font-black text-slate-900 mb-2 mt-4">Complete Payment</h3>
+              <p className="text-slate-500 font-medium mb-6">Scan QR to pay and get your Gate Pass.</p>
+              
+              <div className="bg-slate-50 p-4 border-2 border-slate-200 rounded-3xl mb-6 shadow-inner mx-auto inline-block">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=10&data=${encodeURIComponent(`upi://pay?pa=abhaynarayan0001@okicici&pn=Selfpie&am=${totalPrice}&cu=INR`)}`} 
+                  alt="UPI QR Code" 
+                  className="rounded-2xl w-48 h-48 mix-blend-multiply bg-white"
+                  onError={(e) => { e.target.src = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=SelfpiePayment"; }}
+                />
+              </div>
+              
+              <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-6 py-3 rounded-2xl font-black text-xl mb-6 flex items-center justify-center gap-2 w-full">
+                <span>Amount to Pay: </span>
+                <span className="text-emerald-900">₹{totalPrice}</span>
+              </div>
               
               <div className="space-y-4 w-full">
-                <a href={activeOrder.upiLink} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2">
-                  <CreditCard className="w-5 h-5" /> Pay ₹{totalPrice} via UPI
-                </a>
-                <button onClick={verifyPaymentLocally} className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold">
-                  Simulate UPI Success
+                <button 
+                  onClick={() => {
+                     setIsCheckingOut(true);
+                     setTimeout(() => {
+                        setIsCheckingOut(false);
+                        verifyPaymentLocally();
+                     }, 2000);
+                  }} 
+                  disabled={isCheckingOut}
+                  className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 disabled:bg-indigo-400">
+                  {isCheckingOut ? <><Loader2 className="w-5 h-5 animate-spin" /> Verifying Payment...</> : 'I have scanned & paid'}
                 </button>
               </div>
             </>
           ) : ['Pending', 'Accepted', 'Ready for Pickup'].includes(activeOrder.status) ? (
              <>
                <div className="w-full bg-gradient-to-b from-emerald-50 to-white pt-6 pb-2 rounded-2xl border-2 border-emerald-100 shadow-sm relative overflow-hidden">
-                 <div className="flex justify-center mb-2">{getStatusIcon(activeOrder.status)}</div>
                  <h2 className="text-xl font-black text-emerald-700 mx-6 border-b border-emerald-100 pb-2 border-dashed">GATE PASS READY</h2>
                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${activeOrder.id}&color=047857`} alt="QR" className="mx-auto my-6 mix-blend-multiply" />
                  <p className="font-mono text-emerald-800 font-bold bg-emerald-100 inline-block px-4 py-1.5 rounded-lg tracking-widest">{activeOrder.id}</p>

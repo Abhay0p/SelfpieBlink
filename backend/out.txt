@@ -1,0 +1,1 @@
+{"success":false,"message":"Failed to create item","error":"E11000 duplicate key error collection: grocery_billing.spabhay_items index: shopId_1_barcode_1 dup key: { shopId: ObjectId('65e9b89b89b89b89b89b89b8'), barcode: null }"}

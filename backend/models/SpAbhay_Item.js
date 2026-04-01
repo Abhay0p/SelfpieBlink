@@ -20,12 +20,14 @@ const itemSchema = new mongoose.Schema({
   },
   barcode: {
     type: String,
-    unique: true, // In reality, barcode might be non-unique across diff shops, but unique across platform is fine for demo
-    sparse: true
+    default: null
   }
 });
 
 // Since barcode can be null if entered manually, but must be unique if present alongside shop
-itemSchema.index({ shopId: 1, barcode: 1 }, { unique: true });
+itemSchema.index(
+  { shopId: 1, barcode: 1 }, 
+  { unique: true, partialFilterExpression: { barcode: { $type: "string", $ne: "" } } }
+);
 
 export const SpAbhay_Item = mongoose.model('SpAbhay_Item', itemSchema);

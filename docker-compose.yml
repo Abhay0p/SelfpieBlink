@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: selfpie_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build: ./backend
+    container_name: selfpie_backend
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongodb:27017/grocery_billing
+      - JWT_SECRET=SpAbhay_ProductionSecret_789
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - mongodb
+
+  frontend:
+    build: 
+      context: ./frontend
+      args:
+        # Note: In production you'd use your actual domain instead of localhost
+        - VITE_API_URL=http://localhost:5000
+    container_name: selfpie_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:

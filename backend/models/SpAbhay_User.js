@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     default: 'merchant'
+  },
+  location: {
+    lat: Number,
+    lng: Number
   }
 }, { timestamps: true });
 

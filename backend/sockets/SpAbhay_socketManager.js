@@ -25,10 +25,10 @@ export const setupSocketManager = (io) => {
       const order = activeOrders.get(orderId);
       if (order) {
         order.status = status;
-        // Notify all clients (customer can listen to this)
-        io.emit('order_status_changed', { orderId, status });
-        console.log(`[Socket] Order ${orderId} status updated to ${status}`);
       }
+      // Aggressively notify all clients (frontend history log listens to this)
+      io.emit('order_status_changed', { orderId, status });
+      console.log(`[Socket] Order ${orderId} status broadcasted as ${status}`);
     });
 
     // Global chat system

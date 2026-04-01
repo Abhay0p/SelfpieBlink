@@ -27,7 +27,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api', coreRoutes);
 
 // MongoDB Connect
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/grocery_billing')
+mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/grocery_billing')
   .then(() => console.log('Connected to MongoDB'))
   .catch((err) => console.log('MongoDB connection error:', err));
 
